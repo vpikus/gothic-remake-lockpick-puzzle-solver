@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { solve, MIN_SLIDERS, MAX_SLIDERS, LINK } from './solver.js';
+import { solve, validateConfig, MIN_SLIDERS, MAX_SLIDERS, LINK } from './solver.js';
 import StartPositionMatrix from './components/StartPositionMatrix.jsx';
 import LinksMatrix from './components/LinksMatrix.jsx';
 import SolutionTable from './components/SolutionTable.jsx';
@@ -16,12 +16,62 @@ function makeLinks(n, prev = []) {
   );
 }
 
+const STORAGE_KEY = 'gothic-lock-solver.config.v1';
+
+// Keep the link matrix diagonal pinned to "Same" after loading external data.
+function normalizeLinks(links) {
+  return links.map((row, r) => row.map((v, c) => (c === r ? LINK.SAME : v)));
+}
+
+// Read a previously saved config from localStorage. Returns null if absent or invalid.
+function loadConfig() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object') return null;
+    const cfg = { n: data.n, start: data.start, links: data.links };
+    if (validateConfig(cfg)) return null; // invalid -> ignore the stored value
+    cfg.links = normalizeLinks(cfg.links);
+    return cfg;
+  } catch {
+    return null;
+  }
+}
+
+function getInitialConfig() {
+  return loadConfig() || { n: MIN_SLIDERS, start: makeStart(MIN_SLIDERS), links: makeLinks(MIN_SLIDERS) };
+}
+
+// UTF-8 safe Base64 encode (no deprecated APIs).
+function toBase64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+// UTF-8 safe Base64 decode. Throws on malformed input.
+function fromBase64(b64) {
+  const bin = atob(b64.trim());
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
 export default function App() {
-  const [n, setN] = useState(MIN_SLIDERS);
-  const [start, setStart] = useState(() => makeStart(MIN_SLIDERS));
-  const [links, setLinks] = useState(() => makeLinks(MIN_SLIDERS));
+  // Restore the last saved config (computed once) so a page refresh keeps the inputs.
+  const initialRef = useRef(null);
+  if (initialRef.current === null) initialRef.current = getInitialConfig();
+  const init = initialRef.current;
+
+  const [n, setN] = useState(init.n);
+  const [start, setStart] = useState(init.start);
+  const [links, setLinks] = useState(init.links);
   const [result, setResult] = useState(null);
   const [solving, setSolving] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
 
   // The search runs in a Web Worker. Every request gets a monotonically increasing
   // id; responses whose id is no longer current are ignored, so a result can never
@@ -48,6 +98,32 @@ export default function App() {
       workerRef.current = null;
     };
   }, []);
+
+  // Persist the config on every change so it survives a page refresh.
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ n, start, links }));
+    } catch {
+      // storage unavailable (private mode / quota) — ignore
+    }
+  }, [n, start, links]);
+
+  // Close the "More" menu on an outside click or Escape.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
   // Any input change invalidates an in-flight request and the currently shown solution.
   const invalidate = () => {
@@ -110,6 +186,47 @@ export default function App() {
     invalidate();
   };
 
+  // Copy the current config as a Base64 string (handy for sharing / debugging).
+  const copyConfig = async () => {
+    const text = toBase64(JSON.stringify({ n, start, links }));
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard API blocked (e.g. non-secure context) — show the string to copy manually.
+      window.prompt('Copy this Base64 config:', text);
+    }
+  };
+
+  // Load a config from a pasted Base64 string (the counterpart of Copy config).
+  const importConfig = () => {
+    const input = window.prompt('Paste a Base64 config:');
+    if (input == null) return; // cancelled
+    const text = input.trim();
+    if (!text) return;
+
+    let cfg;
+    try {
+      const data = JSON.parse(fromBase64(text));
+      cfg = { n: data.n, start: data.start, links: data.links };
+    } catch {
+      window.alert('Invalid config: could not decode the Base64 string.');
+      return;
+    }
+
+    const err = validateConfig(cfg);
+    if (err) {
+      window.alert('Invalid config: ' + err);
+      return;
+    }
+
+    setN(cfg.n);
+    setStart(cfg.start);
+    setLinks(normalizeLinks(cfg.links));
+    invalidate();
+  };
+
   return (
     <div className="app">
       <header>
@@ -169,6 +286,39 @@ export default function App() {
         <button className="secondary" onClick={resetAll} disabled={solving}>
           Reset
         </button>
+
+        <div className="more-menu" ref={menuRef}>
+          <button
+            className="secondary more-btn"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+          >
+            More ▾
+          </button>
+          {menuOpen && (
+            <div className="more-dropdown" role="menu">
+              <button
+                role="menuitem"
+                onClick={copyConfig}
+                title="Copy the current configuration as a Base64 string"
+              >
+                {copied ? 'Copied!' : 'Copy config'}
+              </button>
+              <button
+                role="menuitem"
+                disabled={solving}
+                onClick={() => {
+                  setMenuOpen(false);
+                  importConfig();
+                }}
+                title="Load a configuration from a Base64 string"
+              >
+                Import config
+              </button>
+            </div>
+          )}
+        </div>
       </section>
 
       <section className="card" aria-live="polite" aria-busy={solving}>
