@@ -322,6 +322,30 @@ button.secondary:disabled {
   cursor: not-allowed;
 }
 
+/* ---- recent solved puzzles ---- */
+.history-control {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.history-select {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 10px;
+  background: #1a140d;
+  color: var(--text);
+  border: 1px solid #3a2d1c;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.history-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 /* ---- results ---- */
 .placeholder {
   color: var(--muted);

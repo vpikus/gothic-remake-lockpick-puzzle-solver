@@ -44,6 +44,33 @@ function getInitialConfig() {
   return loadConfig() || { n: MIN_SLIDERS, start: makeStart(MIN_SLIDERS), links: makeLinks(MIN_SLIDERS) };
 }
 
+const HISTORY_KEY = 'gothic-lock-solver.history.v1';
+const HISTORY_LIMIT = 15;
+
+// Read the recent-solved history from localStorage, dropping any invalid entries.
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter(
+        (e) =>
+          e &&
+          typeof e.key === 'string' &&
+          validateConfig({ n: e.n, start: e.start, links: e.links }) === null
+      )
+      .slice(0, HISTORY_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+function historyLabel(e) {
+  return `${e.n} sliders · start ${e.start.join('-')} · ${e.actions} act, ${e.presses} pr`;
+}
+
 export default function App() {
   // Restore the last saved config (computed once) so a page refresh keeps the inputs.
   const initialRef = useRef(null);
@@ -58,12 +85,32 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
+  const [history, setHistory] = useState(() => loadHistory());
 
   // The search runs in a Web Worker. Every request gets a monotonically increasing
   // id; responses whose id is no longer current are ignored, so a result can never
   // overwrite the view after the inputs have changed.
   const workerRef = useRef(null);
   const requestIdRef = useRef(0);
+  const lastRequestRef = useRef(null); // { id, config } of the most recent search
+
+  // Save a solved puzzle to the recent-history list (most recent first, de-duplicated).
+  const recordSolved = (id, res) => {
+    if (!res || !res.ok || !res.solved || res.totalActions < 1) return;
+    const req = lastRequestRef.current;
+    if (!req || req.id !== id) return;
+    const cfg = req.config;
+    const key = encodeConfig(cfg);
+    const entry = {
+      key,
+      n: cfg.n,
+      start: cfg.start,
+      links: cfg.links,
+      actions: res.totalActions,
+      presses: res.totalPresses,
+    };
+    setHistory((prev) => [entry, ...prev.filter((e) => e.key !== key)].slice(0, HISTORY_LIMIT));
+  };
 
   useEffect(() => {
     let worker = null;
@@ -74,6 +121,7 @@ export default function App() {
         if (id !== requestIdRef.current) return; // stale response
         setResult(res);
         setSolving(false);
+        recordSolved(id, res);
       };
       workerRef.current = worker;
     } catch {
@@ -93,6 +141,15 @@ export default function App() {
       // storage unavailable (private mode / quota) — ignore
     }
   }, [n, start, links]);
+
+  // Persist the recent-puzzles history.
+  useEffect(() => {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    } catch {
+      // storage unavailable — ignore
+    }
+  }, [history]);
 
   // Close the "More" menu on an outside click or Escape.
   useEffect(() => {
@@ -139,13 +196,13 @@ export default function App() {
     invalidate();
   };
 
-  const findSolution = () => {
+  const runSolve = (config) => {
     const id = requestIdRef.current + 1;
     requestIdRef.current = id;
+    lastRequestRef.current = { id, config };
     setResult(null);
     setSolving(true);
 
-    const config = { n, start, links };
     const worker = workerRef.current;
     if (worker) {
       worker.postMessage({ id, config });
@@ -163,14 +220,30 @@ export default function App() {
       if (id !== requestIdRef.current) return;
       setResult(res);
       setSolving(false);
+      recordSolved(id, res);
     }, 20);
   };
+
+  const findSolution = () => runSolve({ n, start, links });
 
   const resetAll = () => {
     setStart(makeStart(n));
     setLinks(makeLinks(n));
     invalidate();
   };
+
+  // Load a saved puzzle from history and immediately re-solve it.
+  const loadFromHistory = (key) => {
+    const entry = history.find((e) => e.key === key);
+    if (!entry) return;
+    const config = { n: entry.n, start: entry.start, links: normalizeLinks(entry.links) };
+    setN(config.n);
+    setStart(config.start);
+    setLinks(config.links);
+    runSolve(config);
+  };
+
+  const clearHistory = () => setHistory([]);
 
   // Copy the current config as a compact Base64 string (handy for sharing / debugging).
   const copyConfig = async () => {
@@ -305,6 +378,37 @@ export default function App() {
           )}
         </div>
       </section>
+
+      {history.length > 0 && (
+        <section className="card">
+          <h2>Recent solved puzzles</h2>
+          <div className="history-control">
+            <select
+              className="history-select"
+              value=""
+              onChange={(e) => {
+                if (e.target.value) loadFromHistory(e.target.value);
+              }}
+              disabled={solving}
+              aria-label="Load a recently solved puzzle"
+            >
+              <option value="">Select a saved puzzle…</option>
+              {history.map((h) => (
+                <option key={h.key} value={h.key}>
+                  {historyLabel(h)}
+                </option>
+              ))}
+            </select>
+            <button className="secondary" onClick={clearHistory} disabled={solving}>
+              Clear
+            </button>
+          </div>
+          <p className="hint">
+            The last {HISTORY_LIMIT} solved puzzles are saved in your browser. Selecting one loads it and
+            shows its solution.
+          </p>
+        </section>
+      )}
 
       <section className="card" aria-live="polite" aria-busy={solving}>
         <h2>Solution</h2>
