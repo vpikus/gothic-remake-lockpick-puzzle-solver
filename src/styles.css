@@ -185,17 +185,18 @@ table.matrix .row-label {
   border-radius: 6px;
   padding: 4px 6px;
   font-size: 0.85rem;
+  font-weight: 700; /* all chosen values are bold */
   cursor: pointer;
 }
 
 .link-same {
-  color: var(--accent-2);
+  color: #6fcf6f; /* green */
 }
 .link-opposite {
-  color: #69b0e0;
+  color: #e8836e; /* red */
 }
 .link-none {
-  color: var(--muted);
+  color: var(--muted); /* bold, keeps its original muted color */
 }
 
 .locked-same {
@@ -400,6 +401,35 @@ table.solution-table .action-cell {
 table.solution-table td,
 table.solution-table th {
   padding: 6px 8px;
+}
+
+/* Outline only the outer edge of the hovered row (no internal borders). */
+table.solution-table tbody td,
+table.solution-table thead th {
+  transition: border-color 0.12s ease;
+}
+
+table.solution-table tbody tr:hover td {
+  border-top-color: var(--accent-2);
+  border-bottom-color: var(--accent-2);
+}
+
+table.solution-table tbody tr:hover td:first-child {
+  border-left-color: var(--accent-2);
+}
+
+table.solution-table tbody tr:hover td:last-child {
+  border-right-color: var(--accent-2);
+}
+
+/* In a collapsed table the top edge is shared with the element above, whose
+   border wins — so color that neighbor's bottom border too. */
+table.solution-table tbody tr:has(+ tr:hover) td {
+  border-bottom-color: var(--accent-2);
+}
+
+table.solution-table thead:has(+ tbody tr:first-child:hover) th {
+  border-bottom-color: var(--accent-2);
 }
 
 .initial-row td {
