@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { solve, validateConfig, MIN_SLIDERS, MAX_SLIDERS, LINK } from './solver.js';
+import { encodeConfig, decodeConfig } from './configCodec.js';
 import StartPositionMatrix from './components/StartPositionMatrix.jsx';
 import LinksMatrix from './components/LinksMatrix.jsx';
 import SolutionTable from './components/SolutionTable.jsx';
@@ -41,21 +42,6 @@ function loadConfig() {
 
 function getInitialConfig() {
   return loadConfig() || { n: MIN_SLIDERS, start: makeStart(MIN_SLIDERS), links: makeLinks(MIN_SLIDERS) };
-}
-
-// UTF-8 safe Base64 encode (no deprecated APIs).
-function toBase64(str) {
-  const bytes = new TextEncoder().encode(str);
-  let bin = '';
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin);
-}
-
-// UTF-8 safe Base64 decode. Throws on malformed input.
-function fromBase64(b64) {
-  const bin = atob(b64.trim());
-  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
 }
 
 export default function App() {
@@ -186,32 +172,31 @@ export default function App() {
     invalidate();
   };
 
-  // Copy the current config as a Base64 string (handy for sharing / debugging).
+  // Copy the current config as a compact Base64 string (handy for sharing / debugging).
   const copyConfig = async () => {
-    const text = toBase64(JSON.stringify({ n, start, links }));
+    const text = encodeConfig({ n, start, links });
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
       // Clipboard API blocked (e.g. non-secure context) — show the string to copy manually.
-      window.prompt('Copy this Base64 config:', text);
+      window.prompt('Copy this config string:', text);
     }
   };
 
   // Load a config from a pasted Base64 string (the counterpart of Copy config).
   const importConfig = () => {
-    const input = window.prompt('Paste a Base64 config:');
+    const input = window.prompt('Paste a config string:');
     if (input == null) return; // cancelled
     const text = input.trim();
     if (!text) return;
 
     let cfg;
     try {
-      const data = JSON.parse(fromBase64(text));
-      cfg = { n: data.n, start: data.start, links: data.links };
+      cfg = decodeConfig(text);
     } catch {
-      window.alert('Invalid config: could not decode the Base64 string.');
+      window.alert('Invalid config: could not decode the string.');
       return;
     }
 
