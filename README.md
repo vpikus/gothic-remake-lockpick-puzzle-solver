@@ -1,5 +1,7 @@
 # Gothic Remake — Lock Puzzle Solver
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-2ea44f?logo=github)](https://vpikus.github.io/gothic-remake-lockpick-puzzle-solver/)
+
 A single-page React app that finds the **simplest** solution to the Gothic Remake
 "sliders" lock puzzle: the sequence of moves that brings every slider to **position 4**
 using the fewest **actions** (changes of the active slider), then the fewest total presses.
