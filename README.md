@@ -6,6 +6,39 @@ A single-page React app that finds the **simplest** solution to the Gothic Remak
 "sliders" lock puzzle: the sequence of moves that brings every slider to **position 4**
 using the fewest **actions** (changes of the active slider), then the fewest total presses.
 
+## Why this solver
+
+Compared with other lock-puzzle helpers:
+
+- **Optimizes for the fewest _actions_, not the most moves.** Other solvers minimize the raw number
+  of individual slider presses and spit out a long, twitchy list. This one minimizes the number of
+  **actions** — changes of the active slider — and groups consecutive presses of the same slider into a
+  single step (e.g. `Slider 1 — Left ×5`). The result reads naturally and is **several times shorter** to
+  follow. (Ties are then broken by the fewest total presses, so it's still minimal overall.)
+- **Keeps a history of the last 15 solved puzzles.** Any recently solved configuration can be reloaded
+  and re-solved with a single click.
+- **Your last puzzle is always there.** Reopen the app and the most recent configuration is loaded and
+  ready — no re-entering it.
+- **Never loses your input on reload.** Slider count, start positions and links are persisted in the
+  browser and survive a refresh.
+- **Import / export.** Copy any configuration as a compact Base64 string to share, back up, or reload it
+  later.
+
+## Screenshots
+
+The example puzzle below (6 sliders) is solved in **15 actions / 46 total presses**.
+
+**Configuration**
+
+![Example configuration](docs/screenshot-config.png)
+
+**Solution**
+
+![Example solution](docs/screenshot-solution.png)
+
+> **Try this exact puzzle:** on the [live demo](https://vpikus.github.io/gothic-remake-lockpick-puzzle-solver/),
+> open **More → Import config** and paste the code `FuODelkotG2t`.
+
 ## The puzzle
 
 - There are **N sliders** (`N = 4..7`). Each slider sits in one of **7 holes** (positions `1..7`).
