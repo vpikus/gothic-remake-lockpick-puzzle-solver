@@ -57,6 +57,18 @@ implementation: it cross-checks the Dijkstra result against a separate breadth-f
 configurations, and re-applies every reported solution step-by-step to confirm it actually reaches the
 goal. Run with `npm test`.
 
+## Deployment (GitHub Pages)
+
+Pushing to `main` builds the app and publishes it to GitHub Pages via
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
+
+One-time setup: in the GitHub repo, open **Settings → Pages** and set **Source** to
+**GitHub Actions**. After the next push, the site is served at
+`https://<user>.github.io/gothic-remake-lockpick-puzzle-solver/`.
+
+The workflow sets `VITE_BASE` to the repository path so assets (and the Web Worker) resolve
+under the Pages sub-path. If you rename the repository, update `VITE_BASE` in the workflow to match.
+
 ## How to use
 
 1. Choose the **number of sliders** (4–7).
